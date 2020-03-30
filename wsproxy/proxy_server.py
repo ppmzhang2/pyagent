@@ -11,7 +11,7 @@ logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
 
 
-class BrowserServer(asyncio.Protocol):
+class ProxyServer(asyncio.Protocol):
     INIT, HOST, DATA = 0, 1, 2
 
     def __init__(self):
@@ -79,6 +79,6 @@ async def create_connection_direct(
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
-    srv = loop.create_server(BrowserServer, 'localhost', 1080)
+    srv = loop.create_server(ProxyServer, 'localhost', 1080)
     loop.run_until_complete(srv)
     loop.run_forever()
