@@ -1,84 +1,204 @@
+from __future__ import annotations
+
 import asyncio
 import logging.config
 import socket
+from functools import wraps
 from struct import pack, unpack
-from typing import Tuple
+from typing import Optional, NoReturn, Tuple
 
 import wsproxy.config as cfg
-from wsproxy.free_client import FreeClient
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
 
 
-class ProxyServer(asyncio.Protocol):
-    INIT, HOST, DATA = 0, 1, 2
+def dec(fn):
+    @wraps(fn)
+    async def helper(self: BaseTcpProtocol, *args, **kwargs):
+        try:
+            return await fn(self, *args, **kwargs)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError) as e:
+            logger.debug(e)
+        except Exception as e:
+            logger.error(e)
+            raise e
+        finally:
+            await self.close()
+
+    return helper
+
+
+class BaseTcpProtocol(object):
+    def __init__(self, reader: asyncio.StreamReader,
+                 writer: asyncio.StreamWriter):
+        self.reader = reader
+        self.writer = writer
+
+    @staticmethod
+    async def create_connection(host: str, port: int) -> BaseTcpProtocol:
+        """create a TCP socket
+
+        :param host:
+        :param port:
+        :return:
+        """
+        reader, writer = await asyncio.open_connection(host=host, port=port)
+        return BaseTcpProtocol(reader, writer)
+
+    async def recv(self, num: int = 4096) -> Optional[bytes]:
+        data = await self.reader.read(num)
+        if data:
+            return data
+        else:
+            return None
+
+    async def send(self, data: bytes) -> int:
+        self.writer.write(data)
+        await self.writer.drain()
+        return len(data)
+
+    async def close(self) -> NoReturn:
+        self.writer.close()
+        try:
+            await self.writer.wait_closed()
+        except ConnectionError:
+            pass
+
+    @property
+    def closed(self) -> bool:
+        return self.writer.is_closing()
+
+
+class RemoteTcpProtocol(BaseTcpProtocol):
+    _INIT, _CONN, _DATA = 0, 1, 2
 
     def __init__(self):
-        self.transport = None
-        self.browser_transport = None
-        self.state = self.INIT
+        self.reader = None
+        self.writer = None
+        self._state = self._INIT
 
-    def connection_made(self, transport):
-        logger.info(
-            f"`Server` connection made from: {transport.get_extra_info('peername')}"
-        )
-        self.transport = transport
+    @property
+    def init_phase(self):
+        return self._state == self._INIT
 
-    def connection_lost(self, exc):
-        self.transport.close()
+    @property
+    def conn_phase(self):
+        return self._state == self._CONN
 
-    def data_received(self, data):
-        logger.info(f'server received: {data}')
-        nxt = None
-        hostname = None
+    @property
+    def data_phase(self):
+        return self._state == self._DATA
 
-        if self.state == self.INIT:
+    async def change_state(self, local: ServerProtocol) -> NoReturn:
+        data = await local.recv()
+        if self.init_phase:
             assert data[0] == 0x05
-            self.transport.write(pack('!BB', 0x05, 0x00))  # no auth
-            self.state = self.HOST
-
-        elif self.state == self.HOST:
+            # no auth
+            await local.send(pack('!BB', 0x05, 0x00))
+            self._state = self._CONN
+        elif self.conn_phase:
             ver, cmd, rsv, atype = data[:4]
             assert ver == 0x05 and cmd == 0x01
 
             if atype == 3:  # domain
                 length = data[4]
-                hostname, nxt = data[5:5 + length], 5 + length
+                host, nxt = data[5:5 + length], 5 + length
             elif atype == 1:  # ipv4
-                hostname, nxt = socket.inet_ntop(socket.AF_INET, data[4:8]), 8
+                host, nxt = socket.inet_ntop(socket.AF_INET, data[4:8]), 8
             elif atype == 4:  # ipv6
-                hostname, nxt = socket.inet_ntop(socket.AF_INET6,
-                                                 data[4:20]), 20
+                host, nxt = socket.inet_ntop(socket.AF_INET6, data[4:20]), 20
+            else:
+                raise ValueError("type specified not supported")
             port = unpack('!H', data[nxt:nxt + 2])[0]
+            reader, writer = await asyncio.open_connection(host=host,
+                                                           port=port)
+            local_host, local_port = local.sock
+            local_hostname = unpack("!I", socket.inet_aton(local_host))[0]
 
-            logger.info(f'to: {hostname}: {port}')
-            asyncio.ensure_future(self.connect(hostname, port))
-            self.state = self.DATA
+            self.reader = reader
+            self.writer = writer
+            self._state = self._DATA
+            await local.send(
+                pack('!BBBBIH', 0x05, 0x00, 0x00, 0x01, local_hostname,
+                     local_port))
+        else:
+            pass
 
-        elif self.state == self.DATA:
-            self.browser_transport.write(data)
+    @dec
+    async def remote_to_local(self, local: ServerProtocol) -> NoReturn:
+        if self.data_phase:
+            while True:
+                data = await self.recv()
+                if data is None:
+                    break
+                await local.send(data)
+        else:
+            pass
 
-    async def connect(self, hostname, port):
-        event_loop = asyncio.get_event_loop()
-        web_transport, free_client = await create_connection_direct(
-            event_loop, FreeClient, hostname, port)
-        free_client.server_transport = self.transport
-        self.browser_transport = web_transport
-        host_ip, port = web_transport.get_extra_info('sockname')
-        host = unpack("!I", socket.inet_aton(host_ip))[0]
-        self.transport.write(
-            pack('!BBBBIH', 0x05, 0x00, 0x00, 0x01, host, port))
+    @dec
+    async def local_to_remote(self, local: ServerProtocol) -> NoReturn:
+        if self.data_phase:
+            while True:
+                data = await local.recv()
+                if data is None:
+                    break
+                await self.send(data)
 
 
-async def create_connection_direct(
-        event_loop, client, host_name,
-        port_num) -> Tuple[asyncio.Transport, FreeClient]:
-    return await event_loop.create_connection(client, host_name, port_num)
+class ServerProtocol(BaseTcpProtocol):
+    def __init__(self, reader: asyncio.StreamReader,
+                 writer: asyncio.StreamWriter):
+        super().__init__(reader, writer)
+
+    @property
+    def peer(self) -> Optional[Tuple[str, int]]:
+        """address & port of a peer, from which initiates connection
+
+        :return: a tuple of 1. address; 2. port
+        """
+        return self.writer.get_extra_info('peername')
+
+    @property
+    def sock(self) -> Optional[Tuple[str, int]]:
+        """socket binding address & port
+
+        :return: a tuple of 1. address; 2. port
+        """
+        return self.writer.get_extra_info('sockname')
+
+    async def exchange_data(self):
+        remote = RemoteTcpProtocol()
+        while not remote.data_phase:
+            await remote.change_state(self)
+        # Pipe the streams, execution order is uncertain
+        # can also use 'await asyncio.gather'
+        asyncio.ensure_future(remote.local_to_remote(self))
+        asyncio.ensure_future(remote.remote_to_local(self))
+
+
+def run(host: str = '127.0.0.1', port: int = 1080):
+    def handle_client(reader, writer):
+        local = ServerProtocol(reader, writer)
+        logger.debug(f'initiated from: {local.peer}')
+        return asyncio.ensure_future(local.exchange_data())
+
+    async def service(h: str, p: int):
+        return await asyncio.start_server(handle_client, host=h, port=p)
+
+    loop = asyncio.get_event_loop()
+    server = loop.run_until_complete(service(host, port))
+
+    for s in server.sockets:
+        logger.info('Proxy broker listening on {}'.format(s.getsockname()))
+
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.close()
 
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    srv = loop.create_server(ProxyServer, 'localhost', 1080)
-    loop.run_until_complete(srv)
-    loop.run_forever()
+    run()
