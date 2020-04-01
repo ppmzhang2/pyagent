@@ -2,109 +2,91 @@ from __future__ import annotations
 
 import asyncio
 import logging.config
-from functools import wraps
+from typing import NoReturn
 
 import wsproxy.config as cfg
+from wsproxy.base_tcp import BaseTcpProtocol, dec
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
 
 
-def dec(fn):
-    @wraps(fn)
-    async def helper(self: BrowserServer, *args, **kwargs):
-        try:
-            return await fn(self, *args, **kwargs)
-        except Exception as e:
-            logger.error(e.__str__())
-            raise e
-        finally:
-            await self.close()
-
-    return helper
-
-
-class BrowserServer(object):
+class ClientRemoteProtocol(BaseTcpProtocol):
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
         self.reader = reader
         self.writer = writer
 
     @staticmethod
-    async def create_connection(host: str, port: int) -> BrowserServer:
-        """create a TCP socket
+    async def create_connection(proxy_host: str,
+                                proxy_port: int) -> ClientRemoteProtocol:
+        """connect to a proxy server and initiate the remote connection
 
-        :param host:
-        :param port:
+        :param proxy_host: proxy host name
+        :param proxy_port: proxy port
         :return:
         """
-        reader, writer = await asyncio.open_connection(host=host, port=port)
-        return BrowserServer(reader, writer)
-
-    async def recv(self, num: int = 4096) -> bytes:
-        data = await self.reader.read(num)
-        return data
-
-    async def send(self, data: bytes) -> int:
-        self.writer.write(data)
-        await self.writer.drain()
-        return len(data)
-
-    async def close(self) -> None:
-        self.writer.close()
-        try:
-            await self.writer.wait_closed()
-        except ConnectionError:
-            pass
-
-    @property
-    def closed(self) -> bool:
-        return self.writer.is_closing()
+        reader, writer = await asyncio.open_connection(host=proxy_host,
+                                                       port=proxy_port)
+        return ClientRemoteProtocol(reader, writer)
 
     @dec
-    async def send_all(self, src: BrowserServer):
-        while True:
-            data = await src.recv()
-            if not data:
-                break
-            await self.send(data)
+    async def remote_to_local(self, local: ClientServerProtocol) -> NoReturn:
+        if self.initiated:
+            while True:
+                data = await self.recv()
+                if data is None:
+                    break
+                await local.send(data)
 
-    async def exchange_data(self, remote: BrowserServer):
-        data = await self.recv()
-        # Write the data to remote
-        await remote.send(data)
-        # Pipe the streams
-        asyncio.ensure_future(remote.send_all(self))
-        asyncio.ensure_future(self.send_all(remote))
+    @dec
+    async def local_to_remote(self, local: ClientServerProtocol) -> NoReturn:
+        if self.initiated:
+            while True:
+                data = await local.recv()
+                if data is None:
+                    break
+                await self.send(data)
 
-    @staticmethod
-    def run():
-        async def handle_client(reader, writer):
-            local = BrowserServer(reader, writer)
-            remote = await BrowserServer.create_connection(host='127.0.1',
-                                                           port=1080)
-            return asyncio.ensure_future(local.exchange_data(remote))
 
-        async def service(host: str = '127.0.0.1', port: int = 8888):
-            return await asyncio.start_server(handle_client,
-                                              host=host,
-                                              port=port)
+class ClientServerProtocol(BaseTcpProtocol):
+    def __init__(self, reader: asyncio.StreamReader,
+                 writer: asyncio.StreamWriter):
+        self.reader = reader
+        self.writer = writer
 
-        try:
-            loop = asyncio.get_event_loop()
-            server = loop.run_until_complete(service())
-        except Exception as e:
-            logger.error('Bind error: {}'.format(e))
-            raise e
+    async def exchange_data(self, remote: ClientRemoteProtocol):
+        if self.initiated:
+            asyncio.ensure_future(remote.local_to_remote(self))
+            asyncio.ensure_future(remote.remote_to_local(self))
 
-        for s in server.sockets:
-            logger.info('Proxy broker listening on {}'.format(s.getsockname()))
 
-        try:
-            loop.run_forever()
-        except KeyboardInterrupt:
-            pass
+def run(proxy_host: str,
+        proxy_port: int,
+        host: str = '127.0.0.1',
+        port: int = 8888):
+    async def handle_client(reader, writer):
+        local = ClientServerProtocol(reader, writer)
+        remote = await ClientRemoteProtocol.create_connection(
+            proxy_host, proxy_port)
+        return asyncio.ensure_future(local.exchange_data(remote))
+
+    async def service(h: str, p: int):
+        return await asyncio.start_server(handle_client, host=h, port=p)
+
+    loop = asyncio.get_event_loop()
+    server = loop.run_until_complete(service(host, port))
+
+    for s in server.sockets:
+        logger.info('Proxy broker listening on {}'.format(s.getsockname()))
+
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.close()
 
 
 if __name__ == '__main__':
-    BrowserServer.run()
+    run('127.0.0.1', 1080)
