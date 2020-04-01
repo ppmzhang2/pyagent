@@ -26,5 +26,6 @@ def get_ssl_context(server_side: bool = False):
                             password=passwd)
     ssl_ctx.check_hostname = False
     ssl_ctx.verify_mode = ssl.VerifyMode.CERT_NONE
-    ssl_ctx.set_ciphers('ECDHE-ECDSA-AES256-GCM-SHA384')
+    ssl_ctx.set_ciphers(
+        'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384')
     return ssl_ctx

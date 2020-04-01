@@ -69,21 +69,21 @@ class ClientServerProtocol(BaseTcpProtocol):
             asyncio.ensure_future(remote.remote_to_local(self))
 
 
-def run(proxy_host: str,
-        proxy_port: int,
-        host: str = '127.0.0.1',
-        port: int = 8888):
+def run():
     async def handle_client(reader, writer):
         local = ClientServerProtocol(reader, writer)
         remote = await ClientRemoteProtocol.create_connection(
-            proxy_host, proxy_port, ssl=get_ssl_context())
+            cfg.proxy_server['host_public'],
+            cfg.proxy_server['port'],
+            ssl=get_ssl_context())
         return asyncio.ensure_future(local.exchange_data(remote))
 
-    async def service(h: str, p: int):
+    async def service(h: str = cfg.proxy_client['host'],
+                      p: int = cfg.proxy_client['port']):
         return await asyncio.start_server(handle_client, host=h, port=p)
 
     loop = asyncio.get_event_loop()
-    server = loop.run_until_complete(service(host, port))
+    server = loop.run_until_complete(service())
 
     for s in server.sockets:
         logger.info('Proxy broker listening on {}'.format(s.getsockname()))
@@ -94,7 +94,3 @@ def run(proxy_host: str,
         pass
     finally:
         server.close()
-
-
-if __name__ == '__main__':
-    run('127.0.0.1', 1080)
