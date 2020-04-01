@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import logging.config
+from ssl import SSLContext
 from typing import NoReturn
 
 import wsproxy.config as cfg
 from wsproxy.base_protocol import BaseTcpProtocol, dec
+from wsproxy.ssl_context import get_ssl_context
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
@@ -19,16 +21,20 @@ class ClientRemoteProtocol(BaseTcpProtocol):
         self.writer = writer
 
     @staticmethod
-    async def create_connection(proxy_host: str,
-                                proxy_port: int) -> ClientRemoteProtocol:
+    async def create_connection(
+            proxy_host: str,
+            proxy_port: int,
+            ssl: SSLContext = None) -> ClientRemoteProtocol:
         """connect to a proxy server and initiate the remote connection
 
         :param proxy_host: proxy host name
         :param proxy_port: proxy port
+        :param ssl: SSL context for proxy server
         :return:
         """
         reader, writer = await asyncio.open_connection(host=proxy_host,
-                                                       port=proxy_port)
+                                                       port=proxy_port,
+                                                       ssl=ssl)
         return ClientRemoteProtocol(reader, writer)
 
     @dec
@@ -70,7 +76,7 @@ def run(proxy_host: str,
     async def handle_client(reader, writer):
         local = ClientServerProtocol(reader, writer)
         remote = await ClientRemoteProtocol.create_connection(
-            proxy_host, proxy_port)
+            proxy_host, proxy_port, ssl=get_ssl_context())
         return asyncio.ensure_future(local.exchange_data(remote))
 
     async def service(h: str, p: int):

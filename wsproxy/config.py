@@ -1,3 +1,7 @@
+import os
+
+basedir = os.path.abspath(os.path.dirname(__file__))
+
 logging = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -36,4 +40,10 @@ logging = {
 server = {
     'host': 'localhost',
     'port': 37777,
+}
+
+cert = {
+    'file': f'{basedir}/../enigma/cert.pem',
+    'key': f'{basedir}/../enigma/key.pem',
+    'pass': '',
 }

@@ -8,6 +8,7 @@ from typing import Optional, NoReturn, Tuple
 
 import wsproxy.config as cfg
 from wsproxy.base_protocol import BaseTcpProtocol, dec
+from wsproxy.ssl_context import get_ssl_context
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
@@ -130,7 +131,11 @@ def run(host: str = '127.0.0.1', port: int = 1080):
         return asyncio.ensure_future(local.exchange_data())
 
     async def service(h: str, p: int):
-        return await asyncio.start_server(handle_client, host=h, port=p)
+        return await asyncio.start_server(
+            handle_client,
+            host=h,
+            port=p,
+            ssl=get_ssl_context(server_side=True))
 
     loop = asyncio.get_event_loop()
     server = loop.run_until_complete(service(host, port))
