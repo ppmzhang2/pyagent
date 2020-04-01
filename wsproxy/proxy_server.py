@@ -7,7 +7,7 @@ from struct import pack, unpack
 from typing import Optional, NoReturn, Tuple
 
 import wsproxy.config as cfg
-from wsproxy.base_tcp import BaseTcpProtocol, dec
+from wsproxy.base_protocol import BaseTcpProtocol, dec
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
