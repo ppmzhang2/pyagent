@@ -28,9 +28,13 @@ def dec(fn):
 
 
 class BaseTcpProtocol(object):
+    __slots__ = ['reader', 'writer']
+
+    reader: Optional[asyncio.StreamReader]
+    writer: Optional[asyncio.StreamWriter]
+
     def __init__(self):
-        self.reader: Optional[asyncio.StreamReader] = None
-        self.writer: Optional[asyncio.StreamWriter] = None
+        pass
 
     @property
     def initiated(self):

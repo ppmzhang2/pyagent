@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 class ClientRemoteProtocol(BaseTcpProtocol):
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
+        super().__init__()
         self.reader = reader
         self.writer = writer
 
@@ -52,6 +53,7 @@ class ClientRemoteProtocol(BaseTcpProtocol):
 class ClientServerProtocol(BaseTcpProtocol):
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
+        super().__init__()
         self.reader = reader
         self.writer = writer
 

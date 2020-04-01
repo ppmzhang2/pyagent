@@ -18,6 +18,8 @@ class RemoteTcpProtocol(BaseTcpProtocol):
 
     def __init__(self):
         super().__init__()
+        self.reader = None
+        self.writer = None
         self._state: int = self._INIT
 
     @property
@@ -91,6 +93,7 @@ class RemoteTcpProtocol(BaseTcpProtocol):
 class ProxyServerProtocol(BaseTcpProtocol):
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
+        super().__init__()
         self.reader = reader
         self.writer = writer
 
