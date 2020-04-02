@@ -40,7 +40,7 @@ logging = {
 proxy_server = {
     'host': '0.0.0.0',
     'port': 37777,
-    'host_public': '',
+    'host_public': '127.0.0.1',
 }
 
 proxy_client = {
@@ -52,4 +52,9 @@ cert = {
     'file': f'{basedir}/../enigma/cert.pem',
     'key': f'{basedir}/../enigma/key.pem',
     'pass': '',
+}
+
+cypher = {
+    'key': b'AAE209EBC7168B13761E92C178CBF566',
+    'associated': b'10C79942B475CF796A5035303E0C5315',
 }

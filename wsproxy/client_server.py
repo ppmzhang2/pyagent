@@ -6,14 +6,13 @@ from ssl import SSLContext
 from typing import NoReturn
 
 import wsproxy.config as cfg
-from wsproxy.base_protocol import BaseTcpProtocol, dec
-from wsproxy.ssl_context import get_ssl_context
+from wsproxy.base_protocol import BaseTcpProtocol, AesTcpProtocol, dec
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
 
 
-class ClientRemoteProtocol(BaseTcpProtocol):
+class ClientRemoteProtocol(AesTcpProtocol):
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
         super().__init__()
@@ -73,9 +72,7 @@ def run():
     async def handle_client(reader, writer):
         local = ClientServerProtocol(reader, writer)
         remote = await ClientRemoteProtocol.create_connection(
-            cfg.proxy_server['host_public'],
-            cfg.proxy_server['port'],
-            ssl=get_ssl_context())
+            cfg.proxy_server['host_public'], cfg.proxy_server['port'])
         return asyncio.ensure_future(local.exchange_data(remote))
 
     async def service(h: str = cfg.proxy_client['host'],

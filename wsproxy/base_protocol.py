@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging.config
 from functools import wraps
+from struct import pack, unpack
 from typing import Optional, NoReturn
 
 import wsproxy.config as cfg
+from wsproxy.enigma import AesGcm
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
@@ -22,6 +24,7 @@ def dec(fn):
             logger.error(e)
             raise e
         finally:
+            # TODO
             await self.close()
 
     return helper
@@ -40,7 +43,7 @@ class BaseTcpProtocol(object):
     def initiated(self):
         return self.reader is not None and self.writer is not None
 
-    async def recv(self, num: int = 4096) -> Optional[bytes]:
+    async def recv(self, num: int = 16384) -> Optional[bytes]:
         if not self.initiated:
             return None
         data = await self.reader.read(num)
@@ -71,3 +74,23 @@ class BaseTcpProtocol(object):
         if not self.initiated:
             return None
         return self.writer.is_closing()
+
+
+class AesTcpProtocol(BaseTcpProtocol):
+    _cypher = AesGcm(key=cfg.cypher['key'],
+                     associated=cfg.cypher['associated'])
+
+    async def send(self, data: bytes) -> Optional[int]:
+        length = len(data)
+        assert length <= 65535
+        byte_length = pack('!H', length)
+        await super().send(self._cypher.encrypt(byte_length))
+        await super().send(self._cypher.encrypt(data))
+
+    async def recv(self) -> Optional[bytes]:
+        cypher_head = await super().recv(30)
+        if cypher_head is None:
+            return None
+        length = unpack('!H', self._cypher.decrypt(cypher_head))[0] + 28
+        cypher = await super().recv(length)
+        return self._cypher.decrypt(cypher)

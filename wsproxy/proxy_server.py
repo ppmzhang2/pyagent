@@ -7,8 +7,7 @@ from struct import pack, unpack
 from typing import Optional, NoReturn, Tuple
 
 import wsproxy.config as cfg
-from wsproxy.base_protocol import BaseTcpProtocol, dec
-from wsproxy.ssl_context import get_ssl_context
+from wsproxy.base_protocol import BaseTcpProtocol, AesTcpProtocol, dec
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
@@ -35,17 +34,19 @@ class RemoteTcpProtocol(BaseTcpProtocol):
     def data_phase(self):
         return self._state == self._DATA
 
-    async def change_state(self, local: ProxyServerProtocol) -> NoReturn:
+    async def change_state(self, local: ProxyServerProtocol) -> None:
         if not local.initiated:
-            pass
-        elif self.init_phase:
-            data = await local.recv(1024)
+            return
+        data = await local.recv()
+        if data is None:
+            return
+        if self.init_phase:
             assert data[0] == 0x05
             # no auth
             await local.send(pack('!BB', 0x05, 0x00))
             self._state = self._CONN
+            return
         elif self.conn_phase:
-            data = await local.recv(1024)
             ver, cmd, rsv, atype = data[:4]
             assert ver == 0x05 and cmd == 0x01
 
@@ -70,8 +71,9 @@ class RemoteTcpProtocol(BaseTcpProtocol):
             await local.send(
                 pack('!BBBBIH', 0x05, 0x00, 0x00, 0x01, proxy_hostname,
                      cfg.proxy_server['port']))
+            return
         else:
-            pass
+            return
 
     @dec
     async def remote_to_local(self, local: ProxyServerProtocol) -> NoReturn:
@@ -94,7 +96,7 @@ class RemoteTcpProtocol(BaseTcpProtocol):
                 await self.send(data)
 
 
-class ProxyServerProtocol(BaseTcpProtocol):
+class ProxyServerProtocol(AesTcpProtocol):
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
         super().__init__()
@@ -130,16 +132,15 @@ class ProxyServerProtocol(BaseTcpProtocol):
 def run():
     def handle_client(reader, writer):
         local = ProxyServerProtocol(reader, writer)
-        logger.debug(f'initiated from: {local.peer}')
+        # logger.debug(f'initiated from: {local.peer}')
         return asyncio.ensure_future(local.exchange_data())
 
     async def service(h: str = cfg.proxy_server['host'],
                       p: int = cfg.proxy_server['port']):
-        return await asyncio.start_server(
-            handle_client,
-            host=h,
-            port=p,
-            ssl=get_ssl_context(server_side=True))
+        return await asyncio.start_server(handle_client,
+                                          host=h,
+                                          port=p,
+                                          ssl=None)
 
     loop = asyncio.get_event_loop()
     server = loop.run_until_complete(service())
