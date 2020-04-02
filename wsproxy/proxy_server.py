@@ -36,13 +36,16 @@ class RemoteTcpProtocol(BaseTcpProtocol):
         return self._state == self._DATA
 
     async def change_state(self, local: ProxyServerProtocol) -> NoReturn:
-        data = await local.recv()
-        if self.init_phase:
+        if not local.initiated:
+            pass
+        elif self.init_phase:
+            data = await local.recv(1024)
             assert data[0] == 0x05
             # no auth
             await local.send(pack('!BB', 0x05, 0x00))
             self._state = self._CONN
         elif self.conn_phase:
+            data = await local.recv(1024)
             ver, cmd, rsv, atype = data[:4]
             assert ver == 0x05 and cmd == 0x01
 
@@ -58,15 +61,15 @@ class RemoteTcpProtocol(BaseTcpProtocol):
             port = unpack('!H', data[nxt:nxt + 2])[0]
             reader, writer = await asyncio.open_connection(host=host,
                                                            port=port)
-            local_host, local_port = local.sock
-            local_hostname = unpack("!I", socket.inet_aton(local_host))[0]
+            proxy_hostname = unpack(
+                "!I", socket.inet_aton(cfg.proxy_server['host_public']))[0]
 
             self.reader = reader
             self.writer = writer
             self._state = self._DATA
             await local.send(
-                pack('!BBBBIH', 0x05, 0x00, 0x00, 0x01, local_hostname,
-                     local_port))
+                pack('!BBBBIH', 0x05, 0x00, 0x00, 0x01, proxy_hostname,
+                     cfg.proxy_server['port']))
         else:
             pass
 

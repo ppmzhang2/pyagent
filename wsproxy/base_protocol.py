@@ -59,11 +59,12 @@ class BaseTcpProtocol(object):
     async def close(self) -> NoReturn:
         if not self.initiated:
             pass
-        self.writer.close()
-        try:
-            await self.writer.wait_closed()
-        except ConnectionError:
-            pass
+        else:
+            self.writer.close()
+            try:
+                await self.writer.wait_closed()
+            except ConnectionError:
+                pass
 
     @property
     def closed(self) -> Optional[bool]:
