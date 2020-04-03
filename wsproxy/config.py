@@ -8,13 +8,14 @@ logging = {
     'formatters': {
         'info': {
             'format': '%(asctime)s [%(levelname)s] '
-                      '%(name)s: '
-                      '%(message)s',
+            '%(name)s: '
+            '%(message)s',
         },
         'debug': {
-            'format': '%(asctime)s [%(levelname)s] '
-                      '%(name)s - %(module)s - %(filename)s - %(lineno)s: '
-                      '%(message)s',
+            'format':
+            '%(asctime)s [%(levelname)s] '
+            '%(name)s - %(module)s - %(filename)s - %(lineno)s: '
+            '%(message)s',
         },
     },
     'handlers': {
@@ -32,6 +33,11 @@ logging = {
         },
     },
     'loggers': {
+        'wsproxy.base_protocol': {
+            'handlers': ['debugger'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
         'wsproxy.proxy_server': {
             'handlers': ['debugger'],
             'level': 'DEBUG',
