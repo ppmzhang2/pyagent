@@ -6,14 +6,15 @@ from ssl import SSLContext
 from typing import NoReturn
 
 import wsproxy.config as cfg
-from wsproxy.base_protocol import BaseTcpProtocol, dec
-from wsproxy.ssl_context import get_ssl_context
+from wsproxy.base_protocol import BaseTcpProtocol, AesTcpProtocol, dec
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
 
 
-class ClientRemoteProtocol(BaseTcpProtocol):
+class ClientRemoteProtocol(AesTcpProtocol):
+    _MAX_TIMEOUT = 30
+
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
         super().__init__()
@@ -37,23 +38,30 @@ class ClientRemoteProtocol(BaseTcpProtocol):
                                                        ssl=ssl)
         return ClientRemoteProtocol(reader, writer)
 
-    @dec
-    async def remote_to_local(self, local: ClientServerProtocol) -> NoReturn:
-        if self.initiated:
-            while True:
-                data = await self.recv()
-                if data is None:
-                    break
-                await local.send(data)
+    async def to_local(self, local: ClientServerProtocol) -> NoReturn:
+        while not self.closed:
+            data = await self.recv()
+            if data is None:
+                break
+            await local.send(data)
 
-    @dec
-    async def local_to_remote(self, local: ClientServerProtocol) -> NoReturn:
-        if self.initiated:
-            while True:
-                data = await local.recv()
-                if data is None:
-                    break
-                await self.send(data)
+    async def from_local(self, local: ClientServerProtocol) -> NoReturn:
+        while not self.closed:
+            data = await local.recv()
+            if data is None:
+                break
+            await self.send(data)
+
+    async def exchange_data(self, local: ClientServerProtocol):
+        done, pending = await asyncio.wait(
+            [self.from_local(local),
+             self.to_local(local)],
+            timeout=self._MAX_TIMEOUT)
+        if pending:
+            for p in pending:
+                logger.debug(f'cancelling task: {p}')
+                p.cancel()
+        await self.close()
 
 
 class ClientServerProtocol(BaseTcpProtocol):
@@ -63,20 +71,13 @@ class ClientServerProtocol(BaseTcpProtocol):
         self.reader = reader
         self.writer = writer
 
-    async def exchange_data(self, remote: ClientRemoteProtocol):
-        if self.initiated:
-            asyncio.ensure_future(remote.local_to_remote(self))
-            asyncio.ensure_future(remote.remote_to_local(self))
-
 
 def run():
     async def handle_client(reader, writer):
         local = ClientServerProtocol(reader, writer)
         remote = await ClientRemoteProtocol.create_connection(
-            cfg.proxy_server['host_public'],
-            cfg.proxy_server['port'],
-            ssl=get_ssl_context())
-        return asyncio.ensure_future(local.exchange_data(remote))
+            cfg.proxy_server['host_public'], cfg.proxy_server['port'])
+        return asyncio.ensure_future(remote.exchange_data(local))
 
     async def service(h: str = cfg.proxy_client['host'],
                       p: int = cfg.proxy_client['port']):
