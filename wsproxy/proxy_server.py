@@ -22,6 +22,8 @@ class RemoteTcpProtocol(BaseTcpProtocol):
 
 
 class ProxyServerProtocol(AesTcpProtocol):
+    _MAX_TIMEOUT = 30
+
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
         super().__init__()
@@ -116,8 +118,16 @@ class ProxyServerProtocol(AesTcpProtocol):
         else:
             # Pipe the streams, execution order is uncertain
             # can also use 'await asyncio.gather'
-            asyncio.ensure_future(self.from_remote(remote))
-            asyncio.ensure_future(self.to_remote(remote))
+            done, pending = await asyncio.wait(
+                [self.from_remote(remote),
+                 self.to_remote(remote)],
+                timeout=self._MAX_TIMEOUT)
+            if pending:
+                for p in pending:
+                    logger.debug(f'cancelling task: {p}')
+                    p.cancel()
+            await remote.close()
+            await self.close()
             return
 
 
