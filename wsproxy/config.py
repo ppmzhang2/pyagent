@@ -6,33 +6,46 @@ logging = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'standard': {
-            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        'info': {
+            'format': '%(asctime)s [%(levelname)s] '
+                      '%(name)s: '
+                      '%(message)s',
+        },
+        'debug': {
+            'format': '%(asctime)s [%(levelname)s] '
+                      '%(name)s - %(module)s - %(filename)s - %(lineno)s: '
+                      '%(message)s',
         },
     },
     'handlers': {
-        'default': {
+        'informer': {
             'level': 'INFO',
-            'formatter': 'standard',
+            'formatter': 'info',
+            'class': 'logging.StreamHandler',
+            'stream': 'ext://sys.stdout',
+        },
+        'debugger': {
+            'level': 'DEBUG',
+            'formatter': 'debug',
             'class': 'logging.StreamHandler',
             'stream': 'ext://sys.stdout',
         },
     },
     'loggers': {
-        '': {
-            'handlers': ['default'],
-            'level': 'WARNING',
+        'wsproxy.proxy_server': {
+            'handlers': ['debugger'],
+            'level': 'DEBUG',
             'propagate': False,
         },
-        'my.packg': {
-            'handlers': ['default'],
+        'wsproxy.client_server': {
+            'handlers': ['debugger'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'wsproxy.__main__': {
+            'handlers': ['informer'],
             'level': 'INFO',
             'propagate': False,
-        },
-        '__main__': {
-            'handlers': ['default'],
-            'level': 'DEBUG',
-            'propagate': True,
         },
     },
 }
