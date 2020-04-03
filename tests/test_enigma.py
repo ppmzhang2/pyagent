@@ -36,33 +36,35 @@ class TestModel(unittest.TestCase):
 
         # correct cypher instance
         aes_gcm = AesGcm(self.key, self.associated)
-        cypher_code = aes_gcm.encrypt(self.plaintext)
-        self.assertEqual(self.plaintext, aes_gcm.decrypt(cypher_code))
-        self.assertRaises(
-            InvalidTag, lambda: aes_gcm.decrypt(fake_aes_gcm_iv(cypher_code)))
-        self.assertRaises(
-            InvalidTag, lambda: aes_gcm.decrypt(fake_aes_gcm_tag(cypher_code)))
+        cypher_code = aes_gcm.block_encrypt(self.plaintext)
+        self.assertEqual(self.plaintext, aes_gcm.block_decrypt(cypher_code))
         self.assertRaises(
             InvalidTag,
-            lambda: aes_gcm.decrypt(fake_aes_gcm_data(cypher_code)))
+            lambda: aes_gcm.block_decrypt(fake_aes_gcm_iv(cypher_code)))
+        self.assertRaises(
+            InvalidTag,
+            lambda: aes_gcm.block_decrypt(fake_aes_gcm_tag(cypher_code)))
+        self.assertRaises(
+            AssertionError,
+            lambda: aes_gcm.block_decrypt(fake_aes_gcm_data(cypher_code)))
         AesGcm.clear_instance()
 
         # cypher instance with wrong key
         fake_aes_key = AesGcm(self.fake_key, self.associated)
         self.assertRaises(InvalidTag,
-                          lambda: fake_aes_key.decrypt(cypher_code))
+                          lambda: fake_aes_key.block_decrypt(cypher_code))
         self.assertRaises(
             InvalidTag,
-            lambda: fake_aes_key.decrypt(fake_aes_gcm_tag(cypher_code)))
+            lambda: fake_aes_key.block_decrypt(fake_aes_gcm_tag(cypher_code)))
         AesGcm.clear_instance()
 
         # cypher instance with wrong associated data
         fake_aes_ass = AesGcm(self.key, self.fake_associated)
         self.assertRaises(InvalidTag,
-                          lambda: fake_aes_ass.decrypt(cypher_code))
+                          lambda: fake_aes_ass.block_decrypt(cypher_code))
         self.assertRaises(
             InvalidTag,
-            lambda: fake_aes_ass.decrypt(fake_aes_gcm_tag(cypher_code)))
+            lambda: fake_aes_ass.block_decrypt(fake_aes_gcm_tag(cypher_code)))
         AesGcm.clear_instance()
 
 
