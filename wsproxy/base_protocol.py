@@ -41,14 +41,58 @@ class BaseTcpProtocol(object):
     def initiated(self):
         return self.reader is not None and self.writer is not None
 
-    async def recv(self, num: int = 4096) -> Optional[bytes]:
+    async def _recv(self, size: int = 4096) -> Optional[bytes]:
         if not self.initiated:
             return None
-        data = await self.reader.read(num)
+        data = await self.reader.read(size)
         if data:
             return data
         else:
             return None
+
+    async def recv(self, size: int = 4096) -> Optional[bytes]:
+        return await self._recv(size=size)
+
+    async def recv_any(self,
+                       size: int = 4096,
+                       times: int = 3,
+                       interval: float = 0.5) -> Optional[bytes]:
+        """try a few times to receive data from the stream reader, and return
+          ANY received unless all attempts return None
+
+        :param size: optional, data size for each read
+        :param times: optional, #attempts
+        :param interval: time interval between each attempt
+        :return: first non-None data received, None if no data available
+        """
+        for _ in range(times):
+            data = await self._recv(size=size)
+            if data is not None:
+                return data
+            else:
+                await asyncio.sleep(interval)
+        logger.info('reader is empty')
+        return
+
+    async def recv_all(self,
+                       size: int,
+                       times: int = 3,
+                       interval: float = 0.5) -> Optional[bytes]:
+        data = b''
+        diff = size
+        while True:
+            delta = await self.recv_any(size=diff,
+                                        times=times,
+                                        interval=interval)
+            if not delta:
+                return
+            else:
+                data += delta
+                diff -= len(delta)
+                if diff <= 0:
+                    break
+
+        return data
 
     async def send(self, data: bytes) -> Optional[int]:
         if not self.initiated:
@@ -152,23 +196,8 @@ class AesTcpProtocol(BaseTcpProtocol):
         cypher_block = self._cypher.block_encrypt(data)
         return await super().send(cypher_block)
 
-    async def _recv_block(self, size: int) -> Optional[bytes]:
-        data = b''
-        diff = size
-
-        while True:
-            delta = await super().recv(num=diff)
-            if delta is None:
-                return
-            data += delta
-            diff -= len(delta)
-            if diff == 0:
-                break
-
-        return data
-
     async def recv(self, **kwargs) -> Optional[bytes]:
-        cypher_block = await self._recv_block(self._cypher.FULL_BLOCK_SIZE)
+        cypher_block = await self.recv_all(size=self._cypher.FULL_BLOCK_SIZE)
         if not cypher_block:
             logger.debug('data non complete, abort')
             return None
