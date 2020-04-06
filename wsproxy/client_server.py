@@ -6,13 +6,13 @@ from ssl import SSLContext
 from typing import NoReturn
 
 import wsproxy.config as cfg
-from wsproxy.base_protocol import BaseTcpProtocol, AesTcpProtocol, dec
+from wsproxy.base_protocol import BaseTcpProtocol, CypherProtocol, dec
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
 
 
-class ClientRemoteProtocol(AesTcpProtocol):
+class ClientRemoteProtocol(CypherProtocol):
     _MAX_TIMEOUT = 30
 
     def __init__(self, reader: asyncio.StreamReader,

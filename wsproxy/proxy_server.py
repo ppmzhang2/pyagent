@@ -5,7 +5,7 @@ import logging.config
 from typing import Optional, NoReturn
 
 import wsproxy.config as cfg
-from wsproxy.base_protocol import BaseTcpProtocol, AesTcpProtocol
+from wsproxy.base_protocol import BaseTcpProtocol, CypherProtocol
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ class RemoteTcpProtocol(BaseTcpProtocol):
         self.writer = writer
 
 
-class ProxyServerProtocol(AesTcpProtocol):
+class ProxyServerProtocol(CypherProtocol):
     _MAX_TIMEOUT = 30
 
     def __init__(self, reader: asyncio.StreamReader,

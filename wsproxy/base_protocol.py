@@ -187,7 +187,7 @@ class BaseTcpProtocol(object):
         return reader, writer
 
 
-class AesTcpProtocol(BaseTcpProtocol):
+class CypherProtocol(BaseTcpProtocol):
     _cypher = AesGcm(key=cfg.cypher['key'],
                      associated=cfg.cypher['associated'])
 
