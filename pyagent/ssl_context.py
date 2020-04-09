@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging.config
 import ssl
 
-import wsproxy.config as cfg
+import pyagent.config as cfg
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
