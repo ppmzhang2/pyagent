@@ -7,8 +7,8 @@ import socket
 from struct import pack, unpack
 from typing import Optional, NoReturn, Tuple
 
-import wsproxy.config as cfg
-from wsproxy.enigma import AesGcm
+import pyagent.config as cfg
+from pyagent.enigma import AesGcm
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)

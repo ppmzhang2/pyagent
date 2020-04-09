@@ -2,7 +2,7 @@ import unittest
 
 from cryptography.exceptions import InvalidTag
 
-from wsproxy.enigma import AesGcm
+from pyagent.enigma import AesGcm
 
 
 class TestModel(unittest.TestCase):

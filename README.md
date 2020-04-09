@@ -1,4 +1,20 @@
-# WebSocket Proxy
+# Python Agent
+
+An anonymous TCP proxy with data encryption based on `asyncio`.
+
+## Usage
+
+Server side:
+
+```shell script
+python -m pyagent server
+```
+
+Client side:
+
+```shell script
+python -m pyagent client
+```
 
 ## Reference
 

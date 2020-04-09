@@ -1,8 +1,8 @@
 import sys
 from typing import Optional
 
-import wsproxy.client_server as client
-import wsproxy.proxy_server as server
+import pyagent.client_server as client
+import pyagent.proxy_server as server
 
 args = sys.argv[1:]
 

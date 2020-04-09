@@ -5,8 +5,8 @@ import logging.config
 from ssl import SSLContext
 from typing import NoReturn
 
-import wsproxy.config as cfg
-from wsproxy.base_protocol import BaseTcpProtocol, CypherProtocol, dec
+import pyagent.config as cfg
+from pyagent.base_protocol import BaseTcpProtocol, CypherProtocol
 
 logging.config.dictConfig(cfg.logging)
 logger = logging.getLogger(__name__)
