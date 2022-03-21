@@ -1,14 +1,19 @@
+"""encryption"""
 import os
-from struct import pack, unpack
+from struct import pack
+from struct import unpack
 from typing import NoReturn
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers import Cipher
+from cryptography.hazmat.primitives.ciphers import algorithms
+from cryptography.hazmat.primitives.ciphers import modes
 
 __all__ = ['AesGcm']
 
 
 class SingletonMeta(type):
+    """singleton meta-class"""
     _instance = None
 
     def __call__(cls, *args, **kwargs):
@@ -44,6 +49,7 @@ class AesGcm(metaclass=SingletonMeta):
 
     @classmethod
     def clear_instance(cls) -> NoReturn:
+        """clear instance"""
         try:
             del cls._instance
         except AttributeError:
@@ -123,6 +129,7 @@ class AesGcm(metaclass=SingletonMeta):
         return iv + tag + cypher
 
     def block_decrypt(self, cypher_block: bytes) -> bytes:
+        """block decrypt"""
         # return empty byte when not input
         if not cypher_block:
             return b''

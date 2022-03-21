@@ -1,8 +1,9 @@
+"""main"""
 import sys
 from typing import Optional
 
-import pyagent.client_server as client
-import pyagent.proxy_server as server
+from . import client_server as client
+from . import proxy_server as server
 
 args = sys.argv[1:]
 
@@ -22,14 +23,15 @@ def request() -> Optional[str]:
 
 
 def main() -> None:
+    """main function"""
     if request() is None:
         raise TypeError('expect at least one input')
 
     n_args, func = funcs.get(request(), (None, None))
 
     if func is None:
-        raise TypeError('input request is not valid, accept only {}'.format(
-            list(funcs.keys())))
+        raise TypeError(
+            'input request is not valid, accept only {list(funcs.keys())}')
 
     if n_args == 0:
         func()

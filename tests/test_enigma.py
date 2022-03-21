@@ -1,11 +1,14 @@
+"""test encryption"""
 import unittest
 
 from cryptography.exceptions import InvalidTag
 
-from pyagent.enigma import AesGcm
+from app.enigma import AesGcm
 
 
 class TestModel(unittest.TestCase):
+    """test model"""
+
     @classmethod
     def setUpClass(cls) -> None:
         pass
@@ -25,6 +28,8 @@ class TestModel(unittest.TestCase):
         AesGcm.clear_instance()
 
     def test_aes_gcm(self):
+        """test AES-GCM"""
+
         def fake_aes_gcm_iv(cypher_text: bytes, one_byte: bytes = b'\xc6'):
             return one_byte + cypher_text[1:]
 
