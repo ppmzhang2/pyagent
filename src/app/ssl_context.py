@@ -13,7 +13,7 @@ def get_ssl_context(server_side: bool = False):
     """get SSL context"""
 
     def passwd():
-        return cfg.cert['pass']
+        return cfg.CERT_PASS
 
     if server_side:
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -23,8 +23,8 @@ def get_ssl_context(server_side: bool = False):
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ssl_ctx.options |= ssl.OP_NO_TLSv1
     ssl_ctx.options |= ssl.OP_NO_TLSv1_1
-    ssl_ctx.load_cert_chain(cfg.cert['file'],
-                            keyfile=cfg.cert['key'],
+    ssl_ctx.load_cert_chain(cfg.CERT_FILE,
+                            keyfile=cfg.CERT_KEY,
                             password=passwd)
     ssl_ctx.check_hostname = False
     # pylint: disable=no-member

@@ -5,7 +5,6 @@ import asyncio
 import logging
 import socket
 from functools import wraps
-from struct import pack
 from struct import unpack
 from typing import NoReturn
 from typing import Optional
@@ -40,8 +39,18 @@ class BaseTcpProtocol:
     reader: Optional[asyncio.StreamReader]
     writer: Optional[asyncio.StreamWriter]
 
-    def __init__(self):
-        pass
+    def __init__(self, reader: asyncio.StreamReader,
+                 writer: asyncio.StreamWriter):
+        self.reader = reader
+        self.writer = writer
+
+    @staticmethod
+    def _inet_aton_int(addr: str) -> int:
+        """
+        convert an IP address string into binary form with `inet_aton` and
+        return its unpakced integer number
+        """
+        return unpack('!I', socket.inet_aton(addr))[0]
 
     @property
     def initiated(self) -> bool:
@@ -144,71 +153,18 @@ class BaseTcpProtocol:
             return None
         return self.writer.is_closing()
 
-    async def handshake_socks5(
-        self
-    ) -> Tuple[Optional[asyncio.StreamReader], Optional[asyncio.StreamWriter]]:
-        """handshake handler for socks5 protocol
-
-        :return: a tuple of stream reader and writer if handshake successful,
-          otherwise Tuple[None, None]
-        """
-        init_req = await self.recv()
-        if not init_req:
-            LOGGER.info('handshake failed: no data received')
-            return
-        if not init_req[0] == 0x05:
-            LOGGER.info('handshake failed: not SOCKS5')
-            return
-
-        await self.send(pack('!BB', 0x05, 0x00))
-        LOGGER.info(f'try to accept {self.peer} with no auth...')
-
-        conn_req = await self.recv()
-        ver, cmd, _, atype = conn_req[:4]
-        assert ver == 0x05 and cmd == 0x01
-
-        if atype == 3:  # domain
-            url_len = conn_req[4]
-            host, port_idx = conn_req[5:5 + url_len], 5 + url_len
-        elif atype == 1:  # ipv4
-            host, port_idx = socket.inet_ntop(socket.AF_INET, conn_req[4:8]), 8
-        elif atype == 4:  # ipv6
-            host, port_idx = socket.inet_ntop(socket.AF_INET6,
-                                              conn_req[4:20]), 20
-        else:
-            LOGGER.error(f'handshake failed: AType {atype} not supported')
-            return
-
-        port = unpack('!H', conn_req[port_idx:port_idx + 2])[0]
-
-        try:
-            reader, writer = await asyncio.open_connection(host=host,
-                                                           port=port)
-        except ConnectionRefusedError as e:
-            LOGGER.error(f'handshake failed: {e}')
-            return
-        proxy_hostname = unpack(
-            "!I", socket.inet_aton(cfg.proxy_server['host_public']))[0]
-        respond = pack('!BBBBIH', 0x05, 0x00, 0x00, 0x01, proxy_hostname,
-                       cfg.proxy_server['port'])
-        await self.send(respond)
-        LOGGER.info(f'handshake successful with {self.peer}')
-        return reader, writer
-
 
 class CypherProtocol(BaseTcpProtocol):
     """encrypted protocol"""
-    _cypher = AesGcm(key=cfg.cypher['key'],
-                     associated=cfg.cypher['associated'])
+    _cypher = AesGcm(key=cfg.CYPHER_KEY, associated=cfg.CYPHER_ASSO)
 
-    async def send(self, data: bytes) -> Optional[int]:
+    async def send_block(self, data: bytes) -> Optional[int]:
         assert len(data) <= self._cypher.DATA_SIZE
         cypher_block = self._cypher.block_encrypt(data)
         return await super().send(cypher_block)
 
-    async def recv(self, **kwargs) -> Optional[bytes]:
+    async def recv_block(self) -> Optional[bytes]:
         """receive method"""
-        LOGGER.debug(f'parameters: {kwargs}')
         cypher_block = await self.recv_all(size=self._cypher.FULL_BLOCK_SIZE)
         if not cypher_block:
             LOGGER.debug('data non complete, abort')

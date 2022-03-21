@@ -9,34 +9,28 @@ rootdir = os.path.abspath(os.path.join(srcdir, os.pardir))
 
 
 class Config:
-    # pylint: disable=too-few-public-methods
     """default config"""
+
+    # certificate
+    CERT_FILE = f'{rootdir}/../enigma/cert.pem'
+    CERT_KEY = f'{rootdir}/../enigma/key.pem'
+    CERT_PASS = ''
+
+    # cypher
+    CYPHER_KEY = b'AAE209EBC7168B13761E92C178CBF566'
+    CYPHER_ASSO = b'10C79942B475CF796A5035303E0C5315'
+
+    # address
+    CLIENT_ADDR = '127.0.0.1'
+    CLIENT_PORT = 8888
+    REMOTE_HOST_ADDR = '127.0.0.1'
+    HOST_ADDR = '0.0.0.0'
+    HOST_PORT = 37777
+
     # logging
     LOG_LEVEL = "WARNING"
     LOG_LINE_FORMAT = "%(asctime)s %(levelname)-5s %(threadName)s: %(message)s"
     LOG_DATETIME_FORMAT = "%Y/%m/%d %H:%M:%S"
-
-    proxy_server = {
-        'host': '0.0.0.0',
-        'port': 37777,
-        'host_public': '127.0.0.1',
-    }
-
-    proxy_client = {
-        'host': '127.0.0.1',
-        'port': 8888,
-    }
-
-    cert = {
-        'file': f'{rootdir}/../enigma/cert.pem',
-        'key': f'{rootdir}/../enigma/key.pem',
-        'pass': '',
-    }
-
-    cypher = {
-        'key': b'AAE209EBC7168B13761E92C178CBF566',
-        'associated': b'10C79942B475CF796A5035303E0C5315',
-    }
 
     @classmethod
     def configure_logger(cls, root_module_name):
