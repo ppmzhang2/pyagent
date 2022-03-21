@@ -5,8 +5,8 @@ import logging
 import click
 
 from . import cfg
+from .base_protocol import BaseTcpProtocol
 from .client_server import ClientRemoteProtocol
-from .client_server import ClientServerProtocol
 from .proxy_server import ProxyServerProtocol
 
 LOGGER = logging.getLogger(__name__)
@@ -17,13 +17,12 @@ def run_client():
     """run client"""
 
     async def handle_client(reader, writer):
-        local = ClientServerProtocol(reader, writer)
+        local = BaseTcpProtocol(reader, writer)
         remote = await ClientRemoteProtocol.create_connection(
-            cfg.proxy_server['host_public'], cfg.proxy_server['port'])
+            cfg.REMOTE_HOST_ADDR, cfg.HOST_PORT)
         return asyncio.ensure_future(remote.exchange_data(local))
 
-    async def service(h: str = cfg.proxy_client['host'],
-                      p: int = cfg.proxy_client['port']):
+    async def service(h: str = cfg.CLIENT_ADDR, p: int = cfg.CLIENT_PORT):
         return await asyncio.start_server(handle_client, host=h, port=p)
 
     loop = asyncio.get_event_loop()
@@ -48,8 +47,7 @@ def run_server():
         LOGGER.info(f'new client from: {local.peer}')
         return asyncio.ensure_future(local.exchange_data())
 
-    async def service(h: str = cfg.proxy_server['host'],
-                      p: int = cfg.proxy_server['port']):
+    async def service(h: str = cfg.HOST_ADDR, p: int = cfg.HOST_PORT):
         return await asyncio.start_server(
             handle_client,
             host=h,

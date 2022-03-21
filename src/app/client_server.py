@@ -16,12 +16,6 @@ class ClientRemoteProtocol(CypherProtocol):
     """client remote protocol"""
     _MAX_TIMEOUT = 30
 
-    def __init__(self, reader: asyncio.StreamReader,
-                 writer: asyncio.StreamWriter):
-        super().__init__()
-        self.reader = reader
-        self.writer = writer
-
     @staticmethod
     async def create_connection(
             proxy_host: str,
@@ -39,23 +33,23 @@ class ClientRemoteProtocol(CypherProtocol):
                                                        ssl=ssl)
         return ClientRemoteProtocol(reader, writer)
 
-    async def to_local(self, local: ClientServerProtocol) -> NoReturn:
+    async def to_local(self, local: BaseTcpProtocol) -> NoReturn:
         """get data and send to local"""
         while not self.closed:
-            data = await self.recv()
+            data = await self.recv_block()
             if data is None:
                 break
             await local.send(data)
 
-    async def from_local(self, local: ClientServerProtocol) -> NoReturn:
+    async def from_local(self, local: BaseTcpProtocol) -> NoReturn:
         """get data from local and send"""
         while not self.closed:
             data = await local.recv()
             if data is None:
                 break
-            await self.send(data)
+            await self.send_block(data)
 
-    async def exchange_data(self, local: ClientServerProtocol):
+    async def exchange_data(self, local: BaseTcpProtocol):
         """exchange data"""
         _, pending = await asyncio.wait(
             [self.from_local(local),
@@ -67,13 +61,3 @@ class ClientRemoteProtocol(CypherProtocol):
                 LOGGER.debug(f'cancelling task: {p}')
                 p.cancel()
         await self.close()
-
-
-class ClientServerProtocol(BaseTcpProtocol):
-    """client server protocol"""
-
-    def __init__(self, reader: asyncio.StreamReader,
-                 writer: asyncio.StreamWriter):
-        super().__init__()
-        self.reader = reader
-        self.writer = writer
