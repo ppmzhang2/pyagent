@@ -1,15 +1,17 @@
+"""SSL context"""
 from __future__ import annotations
 
 import logging.config
 import ssl
 
-import pyagent.config as cfg
+from . import cfg
 
-logging.config.dictConfig(cfg.logging)
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 def get_ssl_context(server_side: bool = False):
+    """get SSL context"""
+
     def passwd():
         return cfg.cert['pass']
 
@@ -25,6 +27,7 @@ def get_ssl_context(server_side: bool = False):
                             keyfile=cfg.cert['key'],
                             password=passwd)
     ssl_ctx.check_hostname = False
+    # pylint: disable=no-member
     ssl_ctx.verify_mode = ssl.VerifyMode.CERT_NONE
     ssl_ctx.set_ciphers(
         'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384')

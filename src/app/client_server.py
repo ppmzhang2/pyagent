@@ -1,18 +1,20 @@
+"""client server"""
 from __future__ import annotations
 
 import asyncio
-import logging.config
+import logging
 from ssl import SSLContext
 from typing import NoReturn
 
-import pyagent.config as cfg
-from pyagent.base_protocol import BaseTcpProtocol, CypherProtocol
+from . import cfg
+from .base_protocol import BaseTcpProtocol
+from .base_protocol import CypherProtocol
 
-logging.config.dictConfig(cfg.logging)
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class ClientRemoteProtocol(CypherProtocol):
+    """client remote protocol"""
     _MAX_TIMEOUT = 30
 
     def __init__(self, reader: asyncio.StreamReader,
@@ -39,6 +41,7 @@ class ClientRemoteProtocol(CypherProtocol):
         return ClientRemoteProtocol(reader, writer)
 
     async def to_local(self, local: ClientServerProtocol) -> NoReturn:
+        """get data and send to local"""
         while not self.closed:
             data = await self.recv()
             if data is None:
@@ -46,6 +49,7 @@ class ClientRemoteProtocol(CypherProtocol):
             await local.send(data)
 
     async def from_local(self, local: ClientServerProtocol) -> NoReturn:
+        """get data from local and send"""
         while not self.closed:
             data = await local.recv()
             if data is None:
@@ -53,18 +57,22 @@ class ClientRemoteProtocol(CypherProtocol):
             await self.send(data)
 
     async def exchange_data(self, local: ClientServerProtocol):
-        done, pending = await asyncio.wait(
+        """exchange data"""
+        _, pending = await asyncio.wait(
             [self.from_local(local),
              self.to_local(local)],
-            timeout=self._MAX_TIMEOUT)
+            timeout=self._MAX_TIMEOUT,
+        )
         if pending:
             for p in pending:
-                logger.debug(f'cancelling task: {p}')
+                LOGGER.debug(f'cancelling task: {p}')
                 p.cancel()
         await self.close()
 
 
 class ClientServerProtocol(BaseTcpProtocol):
+    """client server protocol"""
+
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
         super().__init__()
@@ -73,6 +81,8 @@ class ClientServerProtocol(BaseTcpProtocol):
 
 
 def run():
+    """run it"""
+
     async def handle_client(reader, writer):
         local = ClientServerProtocol(reader, writer)
         remote = await ClientRemoteProtocol.create_connection(
@@ -87,8 +97,7 @@ def run():
     server = loop.run_until_complete(service())
 
     for s in server.sockets:
-        logger.info('Proxy broker listening on {}'.format(s.getsockname()))
-
+        LOGGER.info(f'Proxy broker listening on {s.getsockname()}')
     try:
         loop.run_forever()
     except KeyboardInterrupt:

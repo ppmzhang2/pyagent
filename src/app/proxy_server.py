@@ -1,17 +1,21 @@
+"""proxy server"""
 from __future__ import annotations
 
 import asyncio
-import logging.config
-from typing import Optional, NoReturn
+import logging
+from typing import NoReturn
+from typing import Optional
 
-import pyagent.config as cfg
-from pyagent.base_protocol import BaseTcpProtocol, CypherProtocol
+from . import cfg
+from .base_protocol import BaseTcpProtocol
+from .base_protocol import CypherProtocol
 
-logging.config.dictConfig(cfg.logging)
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class RemoteTcpProtocol(BaseTcpProtocol):
+    """remote TCP protocol"""
+
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter):
         super().__init__()
@@ -20,6 +24,8 @@ class RemoteTcpProtocol(BaseTcpProtocol):
 
 
 class ProxyServerProtocol(CypherProtocol):
+    """proxy server protocol"""
+
     _MAX_TIMEOUT = 30
 
     def __init__(self, reader: asyncio.StreamReader,
@@ -36,10 +42,10 @@ class ProxyServerProtocol(CypherProtocol):
         reader, writer = await self.handshake_socks5()
         if reader is None or writer is None:
             return None
-        else:
-            return RemoteTcpProtocol(reader, writer)
+        return RemoteTcpProtocol(reader, writer)
 
     async def from_remote(self, remote: RemoteTcpProtocol) -> NoReturn:
+        """get data from remote and send"""
         while not self.closed:
             data = await remote.recv()
             if data is None:
@@ -47,6 +53,7 @@ class ProxyServerProtocol(CypherProtocol):
             await self.send(data)
 
     async def to_remote(self, remote: RemoteTcpProtocol) -> NoReturn:
+        """receive data and send to remote"""
         while not self.closed:
             data = await self.recv()
             if data is None:
@@ -54,30 +61,33 @@ class ProxyServerProtocol(CypherProtocol):
             await remote.send(data)
 
     async def exchange_data(self) -> None:
+        """exchange data"""
         remote = await self.handshake()
         if not remote:
             await self.close()
             return
-        else:
-            # Pipe the streams, execution order is uncertain
-            # can also use 'await asyncio.gather'
-            done, pending = await asyncio.wait(
-                [self.from_remote(remote),
-                 self.to_remote(remote)],
-                timeout=self._MAX_TIMEOUT)
-            if pending:
-                for p in pending:
-                    logger.debug(f'cancelling task: {p}')
-                    p.cancel()
-            await remote.close()
-            await self.close()
-            return
+        # Pipe the streams, execution order is uncertain
+        # can also use 'await asyncio.gather'
+        _, pending = await asyncio.wait(
+            [self.from_remote(remote),
+             self.to_remote(remote)],
+            timeout=self._MAX_TIMEOUT,
+        )
+        if pending:
+            for p in pending:
+                LOGGER.debug(f'cancelling task: {p}')
+                p.cancel()
+        await remote.close()
+        await self.close()
+        return
 
 
 def run():
+    """run it"""
+
     def handle_client(reader, writer):
         local = ProxyServerProtocol(reader, writer)
-        logger.info(f'new client from: {local.peer}')
+        LOGGER.info(f'new client from: {local.peer}')
         return asyncio.ensure_future(local.exchange_data())
 
     async def service(h: str = cfg.proxy_server['host'],
@@ -91,7 +101,7 @@ def run():
     server = loop.run_until_complete(service())
 
     for s in server.sockets:
-        logger.info('Proxy broker listening on {}'.format(s.getsockname()))
+        LOGGER.info(f'Proxy broker listening on {s.getsockname()}')
 
     try:
         loop.run_forever()
