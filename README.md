@@ -7,13 +7,13 @@ An anonymous TCP proxy with data encryption based on `asyncio`.
 Server side:
 
 ```shell script
-python -m pyagent server
+pyagent run-server
 ```
 
 Client side:
 
 ```shell script
-python -m pyagent client
+pyagent run-client
 ```
 
 ## Reference

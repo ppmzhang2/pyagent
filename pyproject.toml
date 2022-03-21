@@ -92,6 +92,7 @@ authors = [
 ]
 dependencies = [
     "cryptography>=36.0.2",
+    "click>=8.0.4",
 ]
 requires-python = ">=3.9,<3.11"
 license = {text = "Apache-2.0"}

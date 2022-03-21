@@ -6,7 +6,6 @@ import logging
 from ssl import SSLContext
 from typing import NoReturn
 
-from . import cfg
 from .base_protocol import BaseTcpProtocol
 from .base_protocol import CypherProtocol
 
@@ -78,29 +77,3 @@ class ClientServerProtocol(BaseTcpProtocol):
         super().__init__()
         self.reader = reader
         self.writer = writer
-
-
-def run():
-    """run it"""
-
-    async def handle_client(reader, writer):
-        local = ClientServerProtocol(reader, writer)
-        remote = await ClientRemoteProtocol.create_connection(
-            cfg.proxy_server['host_public'], cfg.proxy_server['port'])
-        return asyncio.ensure_future(remote.exchange_data(local))
-
-    async def service(h: str = cfg.proxy_client['host'],
-                      p: int = cfg.proxy_client['port']):
-        return await asyncio.start_server(handle_client, host=h, port=p)
-
-    loop = asyncio.get_event_loop()
-    server = loop.run_until_complete(service())
-
-    for s in server.sockets:
-        LOGGER.info(f'Proxy broker listening on {s.getsockname()}')
-    try:
-        loop.run_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.close()
